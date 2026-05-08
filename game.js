@@ -11,6 +11,11 @@ const uiOverlay = document.getElementById('ui-overlay');
 const uiTitle = document.getElementById('ui-title');
 const uiText = document.getElementById('ui-text');
 const restartBtn = document.getElementById('restart-btn');
+const startBtn = document.getElementById('start-btn');
+const selectionScreen = document.getElementById('selection-screen');
+const gameOverScreen = document.getElementById('game-over-screen');
+const morphBtns = document.querySelectorAll('#morphotype-selection .select-btn');
+const metabolismBtns = document.querySelectorAll('#metabolism-selection .select-btn');
 
 // Game constants
 const BASE_SPEED = 3;
@@ -28,6 +33,8 @@ let nutrients = [];
 let protists = [];
 let viruses = [];
 let mouse = { x: 0, y: 0 };
+let selectedMorphotype = 'coccus';
+let selectedMetabolism = 'photo';
 
 class Virus {
     constructor(x, y) {
@@ -110,16 +117,39 @@ class Protist {
 }
 
 class Nutrient {
-    constructor(x, y) {
+    constructor(x, y, type) {
         this.x = x;
         this.y = y;
+        this.type = type; // 'photo', 'hetero', 'chemo'
         this.radius = 3;
-        this.color = '#ffff99';
+
+        switch(type) {
+            case 'photo': this.color = '#ffff00'; break; // Sunlight/Light energy
+            case 'hetero': this.color = '#ffcc99'; break; // DOM/Organic matter
+            case 'chemo': this.color = '#99ff99'; break; // Inorganic chemicals
+        }
     }
 
     draw() {
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        if (this.type === 'photo') {
+            // Star shape for light
+            for (let i = 0; i < 5; i++) {
+                ctx.lineTo(this.x + Math.cos((18+i*72)/180*Math.PI)*this.radius*2,
+                           this.y + Math.sin((18+i*72)/180*Math.PI)*this.radius*2);
+                ctx.lineTo(this.x + Math.cos((54+i*72)/180*Math.PI)*this.radius,
+                           this.y + Math.sin((54+i*72)/180*Math.PI)*this.radius);
+            }
+        } else if (this.type === 'chemo') {
+            // Diamond for chemicals
+            ctx.moveTo(this.x, this.y - this.radius * 1.5);
+            ctx.lineTo(this.x + this.radius * 1.5, this.y);
+            ctx.lineTo(this.x, this.y + this.radius * 1.5);
+            ctx.lineTo(this.x - this.radius * 1.5, this.y);
+        } else {
+            // Circle for DOM
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        }
         ctx.fillStyle = this.color;
         ctx.fill();
         ctx.closePath();
@@ -127,11 +157,19 @@ class Nutrient {
 }
 
 class Microbe {
-    constructor(x, y) {
+    constructor(x, y, morphotype, metabolism) {
         this.x = x;
         this.y = y;
+        this.morphotype = morphotype; // 'coccus', 'bacillus', 'spirillum'
+        this.metabolism = metabolism; // 'photo', 'hetero', 'chemo'
         this.radius = 10;
-        this.color = '#00ffcc';
+
+        switch(metabolism) {
+            case 'photo': this.color = '#00ffcc'; break;
+            case 'hetero': this.color = '#ff9966'; break;
+            case 'chemo': this.color = '#66ff66'; break;
+        }
+
         this.baseSpeed = BASE_SPEED;
     }
 
@@ -155,17 +193,40 @@ class Microbe {
 
     draw() {
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
-        ctx.fill();
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 2;
-        ctx.stroke();
+
+        if (this.morphotype === 'coccus') {
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else if (this.morphotype === 'bacillus') {
+            ctx.ellipse(this.x, this.y, this.radius * 1.5, this.radius * 0.8, Math.atan2(mouse.y - this.y, mouse.x - this.x), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else if (this.morphotype === 'spirillum') {
+            const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(-this.radius * 1.5, 0);
+            for (let i = -1.5; i <= 1.5; i += 0.1) {
+                ctx.lineTo(i * this.radius, Math.sin(i * 3 + Date.now() * 0.01) * this.radius * 0.5);
+            }
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.restore();
+        }
+
         ctx.closePath();
 
-        // Draw "cilia" or some details
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2 + Date.now() * 0.01;
+        // Draw "cilia" (flagella for spirillum)
+        const numCilia = this.morphotype === 'spirillum' ? 3 : 8;
+        for (let i = 0; i < numCilia; i++) {
+            const angle = (i / numCilia) * Math.PI * 2 + Date.now() * 0.01;
             const x1 = this.x + Math.cos(angle) * this.radius;
             const y1 = this.y + Math.sin(angle) * this.radius;
             const x2 = this.x + Math.cos(angle) * (this.radius + 4);
@@ -198,8 +259,19 @@ window.addEventListener('resize', () => {
 // Initialization
 function init() {
     resize();
+    showSelection();
+}
 
-    player = new Microbe(canvas.width / 2, canvas.height / 2);
+function showSelection() {
+    gameRunning = false;
+    uiOverlay.classList.remove('hidden');
+    selectionScreen.classList.remove('hidden');
+    gameOverScreen.classList.add('hidden');
+    uiTitle.innerText = "Welcome to Microbe Mania";
+}
+
+function startGame() {
+    player = new Microbe(canvas.width / 2, canvas.height / 2, selectedMorphotype, selectedMetabolism);
     mouse.x = canvas.width / 2;
     mouse.y = canvas.height / 2;
 
@@ -219,6 +291,10 @@ function init() {
     }
 
     score = 0;
+    scoreElement.innerText = `Score: ${score}`;
+    player.radius = 10;
+    sizeElement.innerText = `Size: 10μm`;
+
     gameOver = false;
     gameRunning = true;
 
@@ -243,7 +319,18 @@ function gameLoop() {
 function spawnNutrient() {
     const x = Math.random() * canvas.width;
     const y = Math.random() * canvas.height;
-    nutrients.push(new Nutrient(x, y));
+
+    // Weighted spawning: 50% chance for player's metabolism type, 25% for others
+    const rand = Math.random();
+    let type;
+    if (rand < 0.5) {
+        type = selectedMetabolism;
+    } else {
+        const others = ['photo', 'hetero', 'chemo'].filter(t => t !== selectedMetabolism);
+        type = rand < 0.75 ? others[0] : others[1];
+    }
+
+    nutrients.push(new Nutrient(x, y, type));
 }
 
 function spawnVirus() {
@@ -304,13 +391,19 @@ function update() {
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance < player.radius + nutrient.radius) {
+            const isCorrectNutrient = nutrient.type === player.metabolism;
             nutrients.splice(i, 1);
-            score += 10;
+
+            if (isCorrectNutrient) {
+                score += 10;
+                // Growth
+                player.radius += 0.5;
+            } else {
+                score += 2; // Small bonus for "wrong" nutrient? No, maybe just 0.
+            }
+
             scoreElement.innerText = `Score: ${score}`;
             spawnNutrient();
-
-            // Growth
-            player.radius += 0.5;
 
             // Binary Fission (Division)
             if (player.radius >= MAX_SIZE) {
@@ -338,6 +431,8 @@ function draw() {
 function showGameOver() {
     gameRunning = false;
     uiOverlay.classList.remove('hidden');
+    selectionScreen.classList.add('hidden');
+    gameOverScreen.classList.remove('hidden');
     uiTitle.innerText = "The Microbial Loop Continues...";
     uiText.innerHTML = `
         <p>Your microbe was consumed by a grazer or lysed by a virus.</p>
@@ -348,7 +443,25 @@ function showGameOver() {
     `;
 }
 
-restartBtn.addEventListener('click', init);
+// Event listeners for selection
+morphBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        morphBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedMorphotype = btn.dataset.value;
+    });
+});
+
+metabolismBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        metabolismBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedMetabolism = btn.dataset.value;
+    });
+});
+
+startBtn.addEventListener('click', startGame);
+restartBtn.addEventListener('click', showSelection);
 
 // Start the game
 init();
