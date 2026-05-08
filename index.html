@@ -3,38 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Microbe Mania: Marine Ecology Game</title>
+    <title>Prokaryote: The Colonization</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-        <div id="hud">
-            <div id="score">Score: 0</div>
-            <div id="size">Size: 10μm</div>
-        </div>
-        <div id="ui-overlay">
-            <div id="message-box">
-                <h1 id="ui-title">Welcome to Microbe Mania</h1>
-                <div id="selection-screen">
-                    <h3>Select Morphotype:</h3>
-                    <div class="btn-group" id="morphotype-selection">
-                        <button class="select-btn active" data-value="coccus">Coccus</button>
-                        <button class="select-btn" data-value="bacillus">Bacillus</button>
-                        <button class="select-btn" data-value="spirillum">Spirillum</button>
-                    </div>
-                    <h3>Select Metabolism:</h3>
-                    <div class="btn-group" id="metabolism-selection">
-                        <button class="select-btn active" data-value="photo">Photoautotroph</button>
-                        <button class="select-btn" data-value="hetero">Heterotroph</button>
-                        <button class="select-btn" data-value="chemo">Chemoautotroph</button>
-                    </div>
-                    <button id="start-btn">Start Game</button>
+        <!-- Header Info -->
+        <header>
+            <h1>Prokaryote: The Colonization</h1>
+            <div id="stats-bar">
+                <span>Turn: <span id="turn-count">1</span></span>
+                <span>ATP: <span id="atp-count">0</span></span>
+                <span>Biomass: <span id="biomass-count">0</span></span>
+            </div>
+        </header>
+
+        <!-- Environment & Target -->
+        <main id="board">
+            <section id="environment">
+                <div id="current-event" class="info-box">
+                    <h3>Environmental Event</h3>
+                    <div id="event-display">No Event</div>
                 </div>
-                <div id="game-over-screen" class="hidden">
-                    <p id="ui-text"></p>
-                    <button id="restart-btn">Play Again</button>
+                <div id="target-ecosystem" class="info-box highlight">
+                    <h3>Target Ecosystem</h3>
+                    <div id="ecosystem-display">Loading...</div>
+                    <div id="progress-bar-container">
+                        <div id="progress-bar"></div>
+                    </div>
+                    <div id="progress-text">0 / 0 CP</div>
                 </div>
+            </section>
+
+            <!-- Genome (Played Cards) -->
+            <section id="genome-area">
+                <h3>Active Genome (Traits)</h3>
+                <div id="genome-list"></div>
+            </section>
+        </main>
+
+        <!-- Player Interface -->
+        <footer id="player-ui">
+            <div id="hand-container">
+                <div id="hand"></div>
+            </div>
+            <div id="controls">
+                <div id="deck-info">
+                    Deck: <span id="deck-count">0</span> | Discard: <span id="discard-count">0</span>
+                </div>
+                <button id="end-turn-btn">End Turn</button>
+            </div>
+        </footer>
+
+        <!-- Overlays -->
+        <div id="ui-overlay" class="hidden">
+            <div id="modal">
+                <h2 id="ui-title">Game Over</h2>
+                <div id="ui-text"></div>
+                <button id="restart-btn">Restart Game</button>
             </div>
         </div>
     </div>

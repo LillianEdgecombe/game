@@ -1,35 +1,26 @@
-# Microbe Mania: Marine Microbial Ecology Game
+# Prokaryote: The Colonization
 
-An educational solo game about the "Microbial Loop" in marine ecosystems.
+A strategic deckbuilding game where you guide the evolution of a marine prokaryote to colonize diverse ocean ecosystems.
 
-## How to Play
-1. **Selection**: Choose your microbe's **Morphotype** (shape) and **Metabolism** at the start.
-2. **Move**: Use your mouse to guide your microbe through the water column.
-3. **Grow**:
-   - Consume **Nutrients** to increase your size.
-   - Your growth is most efficient when you consume nutrients that match your metabolism:
-     - **Photoautotrophs**: Seek out **Sunlight** (yellow stars).
-     - **Heterotrophs**: Seek out **DOM** (peach dots).
-     - **Chemoautotrophs**: Seek out **Chemicals** (green diamonds).
-4. **Divide**: Once you reach 30μm, you will undergo binary fission (division), resetting your size but significantly increasing your score.
-5. **Survive**:
-   - Avoid **Protists** (large red circles): These are grazers that want to consume you!
-   - Avoid **Viruses** (purple spiked particles): These will infect and lyse (burst) your microbe!
+## Gameplay
+1. **Target Ecosystem**: Each game selects a target ecosystem (e.g., Euphotic Zone, Hydrothermal Vent) with specific requirements for colonization.
+2. **Build Your Genome**: Play **Gene Cards** from your hand to add traits to your microbe's genome.
+   - **Metabolism Genes**: Provide energy and chemical capabilities (e.g., RuBisCO, Nitrogenase).
+   - **Structure Genes**: Provide physical traits (e.g., Flagella, Biofilms).
+3. **Manage Resources**:
+   - **ATP**: Needed to play cards. Regenerates each turn based on your biomass.
+   - **Biomass**: Represents the size of your population, influenced by your genome and colonization progress.
+4. **Environmental Events**: Random events (e.g., Upwelling, Viral Shunts) will occur each turn, boosting or penalizing certain traits.
+5. **Goal**: Accumulate enough **Colonization Points (CP)** to meet the ecosystem's threshold within 20 turns.
 
-## Biological Features
-- **Morphotypes**: Choose between **Coccus** (spherical), **Bacillus** (rod-shaped), or **Spirillum** (spiral-shaped).
-- **Metabolisms**: Your choice of metabolism determines which nutrient source fuels your growth, reflecting the diversity of marine prokaryotes.
-
-## The Science: The Microbial Loop
-In the ocean, not all energy flows directly from phytoplankton to fish. Much of it is "leaked" as dissolved organic matter (DOM).
-
-The **Microbial Loop** is a pathway where:
-1. **Bacteria** (you!) consume this DOM and other nutrients.
-2. **Protists** (grazers) eat the bacteria.
-3. **Viruses** infect bacteria, causing them to burst and release DOM back into the water.
-
-This cycle is crucial for recycling nutrients and supporting the entire marine food web.
+## The Science: Microbial Ecology
+The game illustrates how microbial life adapts to the vast diversity of marine environments:
+- **Euphotic Zone**: Focuses on phototrophy and buoyancy.
+- **Hydrothermal Vents**: Requires chemolithotrophy and high thermal resilience.
+- **Marine Snow**: Depends on adhesion and the ability to degrade complex organic matter.
+- **The Microbial Loop**: Events like the "Viral Shunt" reflect real-world processes where viruses recycle organic matter, impacting microbial population dynamics.
 
 ## Technical Details
-- Built with HTML5 Canvas and Vanilla JavaScript.
-- No external dependencies required.
+- Built with HTML5 and Vanilla JavaScript.
+- Reactive UI that updates based on the current game state.
+- Purely client-side with no external dependencies.

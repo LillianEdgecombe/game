@@ -1,467 +1,295 @@
 /**
- * Marine Microbial Ecology Game
- * Concepts: Microbial Loop, Nutrient Cycling, Trophic Interactions
+ * Prokaryote: The Colonization
+ * A Strategic Deckbuilding Game on Marine Microbial Ecology
  */
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const scoreElement = document.getElementById('score');
-const sizeElement = document.getElementById('size');
-const uiOverlay = document.getElementById('ui-overlay');
-const uiTitle = document.getElementById('ui-title');
-const uiText = document.getElementById('ui-text');
-const restartBtn = document.getElementById('restart-btn');
-const startBtn = document.getElementById('start-btn');
-const selectionScreen = document.getElementById('selection-screen');
-const gameOverScreen = document.getElementById('game-over-screen');
-const morphBtns = document.querySelectorAll('#morphotype-selection .select-btn');
-const metabolismBtns = document.querySelectorAll('#metabolism-selection .select-btn');
-
-// Game constants
-const BASE_SPEED = 3;
-const NUTRIENT_COUNT = 50;
-const PROTIST_COUNT = 3;
-const VIRUS_COUNT = 5;
-const MAX_SIZE = 30;
-
-// Game state
-let score = 0;
-let gameOver = false;
-let gameRunning = false;
-let player;
-let nutrients = [];
-let protists = [];
-let viruses = [];
-let mouse = { x: 0, y: 0 };
-let selectedMorphotype = 'coccus';
-let selectedMetabolism = 'photo';
-
-class Virus {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.radius = 5;
-        this.color = '#cc33ff';
-        this.vx = (Math.random() - 0.5) * 4;
-        this.vy = (Math.random() - 0.5) * 4;
-    }
-
-    update() {
-        this.x += this.vx;
-        this.y += this.vy;
-
-        // Bounce off walls
-        if (this.x < this.radius || this.x > canvas.width - this.radius) this.vx *= -1;
-        if (this.y < this.radius || this.y > canvas.height - this.radius) this.vy *= -1;
-    }
-
-    draw() {
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y - this.radius);
-        for (let i = 0; i < 6; i++) {
-            const angle = (i / 6) * Math.PI * 2;
-            const x = this.x + Math.cos(angle) * this.radius;
-            const y = this.y + Math.sin(angle) * this.radius;
-            ctx.lineTo(x, y);
-            const spikeX = this.x + Math.cos(angle) * (this.radius + 3);
-            const spikeY = this.y + Math.sin(angle) * (this.radius + 3);
-            ctx.moveTo(x, y);
-            ctx.lineTo(spikeX, spikeY);
-            ctx.moveTo(x, y);
-        }
-        ctx.strokeStyle = this.color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.closePath();
+class Card {
+    constructor(id, name, type, value, description) {
+        this.id = id;
+        this.name = name;
+        this.type = type; // 'Metabolism', 'Structure', 'Event'
+        this.value = value;
+        this.description = description;
     }
 }
 
-class Protist {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.radius = 25;
-        this.color = '#ff6666';
-        this.speed = 1.5;
-    }
-
-    update() {
-        // Chase player
-        const dx = player.x - this.x;
-        const dy = player.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance > 0) {
-            this.x += (dx / distance) * this.speed;
-            this.y += (dy / distance) * this.speed;
-        }
-    }
-
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        ctx.closePath();
-
-        // Draw a "mouth" or nucleus
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.fill();
-        ctx.closePath();
+class Ecosystem {
+    constructor(name, requirements, threshold, description) {
+        this.name = name;
+        this.requirements = requirements; // e.g. { photo: 5, buoyancy: 2 }
+        this.threshold = threshold; // Total "Colonization Points" needed
+        this.description = description;
     }
 }
 
-class Nutrient {
-    constructor(x, y, type) {
-        this.x = x;
-        this.y = y;
-        this.type = type; // 'photo', 'hetero', 'chemo'
-        this.radius = 3;
+const GENE_POOL = [
+    { name: "Proteorhodopsin", type: "Metabolism", value: { photo: 2 }, desc: "Harvest light energy in the surface ocean." },
+    { name: "RuBisCO", type: "Metabolism", value: { photo: 3, biomass: 1 }, desc: "Fix carbon through the Calvin cycle." },
+    { name: "Nitrogenase", type: "Metabolism", value: { nitrogen: 3 }, desc: "Convert N2 to ammonia for growth." },
+    { name: "Sulfide Dehydrogenase", type: "Metabolism", value: { chemo: 3 }, desc: "Oxidize sulfide in dark environments." },
+    { name: "Transporters", type: "Metabolism", value: { nutrients: 2 }, desc: "High-affinity uptake of organic matter." },
+    { name: "Flagella", type: "Structure", value: { mobility: 2 }, desc: "Swim towards nutrient patches." },
+    { name: "Pilus", type: "Structure", value: { adhesion: 2, mobility: 1 }, desc: "Attach to particles or other cells." },
+    { name: "S-Layer", type: "Structure", value: { resilience: 2 }, desc: "Crystalline protein layer for protection." },
+    { name: "Gas Vesicle", type: "Structure", value: { buoyancy: 3 }, desc: "Regulate vertical position in the water column." },
+    { name: "Siderophores", type: "Structure", value: { iron: 3 }, desc: "Scavenge rare iron from the seawater." },
+    { name: "EPS", type: "Structure", value: { biofilm: 3, resilience: 1 }, desc: "Form protective biofilms on marine snow." }
+];
 
-        switch(type) {
-            case 'photo': this.color = '#ffff00'; break; // Sunlight/Light energy
-            case 'hetero': this.color = '#ffcc99'; break; // DOM/Organic matter
-            case 'chemo': this.color = '#99ff99'; break; // Inorganic chemicals
-        }
-    }
+const ECOSYSTEMS = [
+    new Ecosystem("Euphotic Zone", { photo: 5, buoyancy: 2 }, 15, "Sunlit surface waters where light is abundant but nutrients are scarce."),
+    new Ecosystem("Marine Snow Particle", { adhesion: 3, nutrients: 4 }, 12, "Organic aggregates sinking through the water column, rich in DOM."),
+    new Ecosystem("Hydrothermal Vent", { chemo: 6, resilience: 5 }, 20, "Extreme heat and chemical-rich fluids in the deep sea."),
+    new Ecosystem("Hadopelagic Trench", { resilience: 8, nutrients: 2 }, 18, "The deepest parts of the ocean with immense pressure.")
+];
 
-    draw() {
-        ctx.beginPath();
-        if (this.type === 'photo') {
-            // Star shape for light
-            for (let i = 0; i < 5; i++) {
-                ctx.lineTo(this.x + Math.cos((18+i*72)/180*Math.PI)*this.radius*2,
-                           this.y + Math.sin((18+i*72)/180*Math.PI)*this.radius*2);
-                ctx.lineTo(this.x + Math.cos((54+i*72)/180*Math.PI)*this.radius,
-                           this.y + Math.sin((54+i*72)/180*Math.PI)*this.radius);
-            }
-        } else if (this.type === 'chemo') {
-            // Diamond for chemicals
-            ctx.moveTo(this.x, this.y - this.radius * 1.5);
-            ctx.lineTo(this.x + this.radius * 1.5, this.y);
-            ctx.lineTo(this.x, this.y + this.radius * 1.5);
-            ctx.lineTo(this.x - this.radius * 1.5, this.y);
-        } else {
-            // Circle for DOM
-            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        }
-        ctx.fillStyle = this.color;
-        ctx.fill();
-        ctx.closePath();
-    }
-}
+const EVENTS = [
+    { name: "Upwelling", type: "Event", value: { boost: 'nutrients' }, desc: "Deep, nutrient-rich water rises to the surface." },
+    { name: "Viral Shunt", type: "Event", value: { penalty: 'biomass' }, desc: "Viral lysis releases DOM back into the water." },
+    { name: "Marine Heatwave", type: "Event", value: { penalty: 'resilience' }, desc: "Sudden temperature spike stresses the population." },
+    { name: "Algal Bloom", type: "Event", value: { boost: 'photo' }, desc: "Massive phytoplankton growth provides energy." }
+];
 
-class Microbe {
-    constructor(x, y, morphotype, metabolism) {
-        this.x = x;
-        this.y = y;
-        this.morphotype = morphotype; // 'coccus', 'bacillus', 'spirillum'
-        this.metabolism = metabolism; // 'photo', 'hetero', 'chemo'
-        this.radius = 10;
+let state = {
+    deck: [],
+    hand: [],
+    discard: [],
+    genome: [],
+    currentEcosystem: null,
+    currentEvent: null,
+    turn: 1,
+    atp: 5,
+    biomass: 0,
+    colonization: 0,
+    gameOver: false
+};
 
-        switch(metabolism) {
-            case 'photo': this.color = '#00ffcc'; break;
-            case 'hetero': this.color = '#ff9966'; break;
-            case 'chemo': this.color = '#66ff66'; break;
-        }
+const dom = {
+    turn: document.getElementById('turn-count'),
+    atp: document.getElementById('atp-count'),
+    biomass: document.getElementById('biomass-count'),
+    event: document.getElementById('event-display'),
+    ecosystem: document.getElementById('ecosystem-display'),
+    progressText: document.getElementById('progress-text'),
+    progressBar: document.getElementById('progress-bar'),
+    genome: document.getElementById('genome-list'),
+    hand: document.getElementById('hand'),
+    deck: document.getElementById('deck-count'),
+    discard: document.getElementById('discard-count'),
+    endTurnBtn: document.getElementById('end-turn-btn'),
+    overlay: document.getElementById('ui-overlay'),
+    uiTitle: document.getElementById('ui-title'),
+    uiText: document.getElementById('ui-text'),
+    restartBtn: document.getElementById('restart-btn')
+};
 
-        this.baseSpeed = BASE_SPEED;
-    }
-
-    update() {
-        // Smoothly follow mouse
-        const dx = mouse.x - this.x;
-        const dy = mouse.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance > 5) {
-            this.x += (dx / distance) * this.baseSpeed;
-            this.y += (dy / distance) * this.baseSpeed;
-        }
-
-        // Boundary checks
-        if (this.x < this.radius) this.x = this.radius;
-        if (this.x > canvas.width - this.radius) this.x = canvas.width - this.radius;
-        if (this.y < this.radius) this.y = this.radius;
-        if (this.y > canvas.height - this.radius) this.y = canvas.height - this.radius;
-    }
-
-    draw() {
-        ctx.beginPath();
-        ctx.fillStyle = this.color;
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-
-        if (this.morphotype === 'coccus') {
-            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-        } else if (this.morphotype === 'bacillus') {
-            ctx.ellipse(this.x, this.y, this.radius * 1.5, this.radius * 0.8, Math.atan2(mouse.y - this.y, mouse.x - this.x), 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-        } else if (this.morphotype === 'spirillum') {
-            const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(angle);
-            ctx.beginPath();
-            ctx.moveTo(-this.radius * 1.5, 0);
-            for (let i = -1.5; i <= 1.5; i += 0.1) {
-                ctx.lineTo(i * this.radius, Math.sin(i * 3 + Date.now() * 0.01) * this.radius * 0.5);
-            }
-            ctx.strokeStyle = this.color;
-            ctx.lineWidth = 4;
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        ctx.closePath();
-
-        // Draw "cilia" (flagella for spirillum)
-        const numCilia = this.morphotype === 'spirillum' ? 3 : 8;
-        for (let i = 0; i < numCilia; i++) {
-            const angle = (i / numCilia) * Math.PI * 2 + Date.now() * 0.01;
-            const x1 = this.x + Math.cos(angle) * this.radius;
-            const y1 = this.y + Math.sin(angle) * this.radius;
-            const x2 = this.x + Math.cos(angle) * (this.radius + 4);
-            const y2 = this.y + Math.sin(angle) * (this.radius + 4);
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.strokeStyle = this.color;
-            ctx.stroke();
-        }
-    }
-}
-
-// Event Listeners
-canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - rect.left;
-    mouse.y = e.clientY - rect.top;
-});
-
-function resize() {
-    canvas.width = window.innerWidth * 0.8;
-    canvas.height = window.innerHeight * 0.8;
-}
-
-window.addEventListener('resize', () => {
-    if (gameRunning) resize();
-});
-
-// Initialization
 function init() {
-    resize();
-    showSelection();
+    state.deck = [];
+    state.discard = [];
+    state.hand = [];
+    state.genome = [];
+    state.turn = 1;
+    state.atp = 5;
+    state.biomass = 0;
+    state.colonization = 0;
+    state.gameOver = false;
+
+    // Create starting deck
+    for (let i = 0; i < 10; i++) {
+        const template = GENE_POOL[Math.floor(Math.random() * GENE_POOL.length)];
+        state.deck.push(new Card(Date.now() + i, template.name, template.type, template.value, template.desc));
+    }
+    shuffle(state.deck);
+
+    selectEcosystem();
+    nextTurn();
+
+    dom.endTurnBtn.onclick = endTurn;
+    dom.restartBtn.onclick = init;
 }
 
-function showSelection() {
-    gameRunning = false;
-    uiOverlay.classList.remove('hidden');
-    selectionScreen.classList.remove('hidden');
-    gameOverScreen.classList.add('hidden');
-    uiTitle.innerText = "Welcome to Microbe Mania";
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
 }
 
-function startGame() {
-    player = new Microbe(canvas.width / 2, canvas.height / 2, selectedMorphotype, selectedMetabolism);
-    mouse.x = canvas.width / 2;
-    mouse.y = canvas.height / 2;
-
-    nutrients = [];
-    for (let i = 0; i < NUTRIENT_COUNT; i++) {
-        spawnNutrient();
-    }
-
-    protists = [];
-    for (let i = 0; i < PROTIST_COUNT; i++) {
-        spawnProtist();
-    }
-
-    viruses = [];
-    for (let i = 0; i < VIRUS_COUNT; i++) {
-        spawnVirus();
-    }
-
-    score = 0;
-    scoreElement.innerText = `Score: ${score}`;
-    player.radius = 10;
-    sizeElement.innerText = `Size: 10μm`;
-
-    gameOver = false;
-    gameRunning = true;
-
-    uiOverlay.classList.add('hidden');
-
-    requestAnimationFrame(gameLoop);
+function selectEcosystem() {
+    state.currentEcosystem = ECOSYSTEMS[Math.floor(Math.random() * ECOSYSTEMS.length)];
+    state.colonization = 0;
 }
 
-function gameLoop() {
-    if (!gameRunning) return;
+function nextTurn() {
+    state.atp = 5 + Math.floor(state.biomass / 5);
 
-    update();
-    draw();
-
-    if (!gameOver) {
-        requestAnimationFrame(gameLoop);
+    // Environmental Event
+    if (Math.random() > 0.6) {
+        const evTemplate = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+        state.currentEvent = evTemplate;
     } else {
-        showGameOver();
+        state.currentEvent = null;
+    }
+
+    // Draw Hand
+    drawCards(5);
+    calculateColonization(); // Ensure stats reflect new event state
+    updateUI();
+}
+
+function drawCards(count) {
+    for (let i = 0; i < count; i++) {
+        if (state.deck.length === 0) {
+            if (state.discard.length === 0) break;
+            state.deck = [...state.discard];
+            state.discard = [];
+            shuffle(state.deck);
+        }
+        state.hand.push(state.deck.pop());
     }
 }
 
-function spawnNutrient() {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
+function playCard(cardId) {
+    if (state.gameOver) return;
 
-    // Weighted spawning: 50% chance for player's metabolism type, 25% for others
-    const rand = Math.random();
-    let type;
-    if (rand < 0.5) {
-        type = selectedMetabolism;
-    } else {
-        const others = ['photo', 'hetero', 'chemo'].filter(t => t !== selectedMetabolism);
-        type = rand < 0.75 ? others[0] : others[1];
+    const cardIdx = state.hand.findIndex(c => c.id === cardId);
+    if (cardIdx === -1) return;
+
+    const card = state.hand[cardIdx];
+
+    // Resource cost: 2 ATP to play a card
+    if (state.atp < 2) {
+        alert("Not enough ATP!");
+        return;
     }
 
-    nutrients.push(new Nutrient(x, y, type));
+    state.atp -= 2;
+    state.hand.splice(cardIdx, 1);
+    state.genome.push(card);
+
+    // Calculate Colonization Impact
+    calculateColonization();
+    updateUI();
 }
 
-function spawnVirus() {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    viruses.push(new Virus(x, y));
-}
+function calculateColonization() {
+    let cp = 0;
+    const traits = {};
 
-function spawnProtist() {
-    // Spawn far from player
-    let x, y, dist;
-    do {
-        x = Math.random() * canvas.width;
-        y = Math.random() * canvas.height;
-        const dx = x - player.x;
-        const dy = y - player.y;
-        dist = Math.sqrt(dx * dx + dy * dy);
-    } while (dist < 300);
-    protists.push(new Protist(x, y));
-}
-
-function update() {
-    player.update();
-
-    // Virus logic
-    viruses.forEach(virus => {
-        virus.update();
-
-        // Collision with player
-        const dx = player.x - virus.x;
-        const dy = player.y - virus.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < player.radius + virus.radius) {
-            gameOver = true;
+    // Aggregate traits from genome
+    state.genome.forEach(card => {
+        for (let key in card.value) {
+            traits[key] = (traits[key] || 0) + card.value[key];
         }
     });
 
-    // Protist logic
-    protists.forEach(protist => {
-        protist.update();
-
-        // Collision with player
-        const dx = player.x - protist.x;
-        const dy = player.y - protist.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < player.radius + protist.radius) {
-            gameOver = true;
+    // Check against ecosystem requirements
+    for (let req in state.currentEcosystem.requirements) {
+        if (traits[req]) {
+            cp += Math.min(traits[req], state.currentEcosystem.requirements[req] * 2);
         }
-    });
+    }
 
-    // Nutrient collision (iterating backwards to safely splice)
-    for (let i = nutrients.length - 1; i >= 0; i--) {
-        const nutrient = nutrients[i];
-        const dx = player.x - nutrient.x;
-        const dy = player.y - nutrient.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < player.radius + nutrient.radius) {
-            const isCorrectNutrient = nutrient.type === player.metabolism;
-            nutrients.splice(i, 1);
-
-            if (isCorrectNutrient) {
-                score += 10;
-                // Growth
-                player.radius += 0.5;
-            } else {
-                score += 2; // Small bonus for "wrong" nutrient? No, maybe just 0.
-            }
-
-            scoreElement.innerText = `Score: ${score}`;
-            spawnNutrient();
-
-            // Binary Fission (Division)
-            if (player.radius >= MAX_SIZE) {
-                player.radius = 10;
-                score += 100;
-                scoreElement.innerText = `Score: ${score}`;
-                // Increase difficulty
-                spawnProtist();
-                spawnVirus();
-            }
-
-            sizeElement.innerText = `Size: ${Math.round(player.radius)}μm`;
+    // Event modifiers
+    if (state.currentEvent) {
+        if (state.currentEvent.value.boost && traits[state.currentEvent.value.boost]) {
+            cp += 5;
         }
+        if (state.currentEvent.value.penalty && traits[state.currentEvent.value.penalty]) {
+            cp -= 3;
+        }
+    }
+
+    state.colonization = Math.max(0, cp);
+    state.biomass = state.genome.length * 2 + state.colonization;
+
+    if (state.colonization >= state.currentEcosystem.threshold) {
+        winEcosystem();
     }
 }
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    nutrients.forEach(n => n.draw());
-    viruses.forEach(v => v.draw());
-    protists.forEach(p => p.draw());
-    player.draw();
-}
-
-function showGameOver() {
-    gameRunning = false;
-    uiOverlay.classList.remove('hidden');
-    selectionScreen.classList.add('hidden');
-    gameOverScreen.classList.remove('hidden');
-    uiTitle.innerText = "The Microbial Loop Continues...";
-    uiText.innerHTML = `
-        <p>Your microbe was consumed by a grazer or lysed by a virus.</p>
-        <p><strong>Final Score: ${score}</strong></p>
+function winEcosystem() {
+    state.gameOver = true;
+    dom.overlay.classList.remove('hidden');
+    dom.uiTitle.innerText = "Ecosystem Colonized!";
+    dom.uiText.innerHTML = `
+        <p>Your prokaryote successfully dominated the <strong>${state.currentEcosystem.name}</strong>!</p>
+        <p>Colonization Points: ${state.colonization}</p>
+        <p>Total Turn: ${state.turn}</p>
         <hr>
-        <p><small>In the ocean, the "Microbial Loop" describes how bacteria consume dissolved organic matter,
-        and are in turn eaten by protists or killed by viruses, recycling nutrients back into the ecosystem.</small></p>
+        <p><small>${state.currentEcosystem.description}</small></p>
     `;
 }
 
-// Event listeners for selection
-morphBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        morphBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedMorphotype = btn.dataset.value;
+function endTurn() {
+    if (state.gameOver) return;
+
+    state.turn++;
+    // Discard remaining hand
+    state.discard.push(...state.hand);
+    state.hand = [];
+
+    if (state.turn > 20) {
+        loseGame();
+    } else {
+        nextTurn();
+    }
+}
+
+function loseGame() {
+    state.gameOver = true;
+    dom.overlay.classList.remove('hidden');
+    dom.uiTitle.innerText = "Extinction";
+    dom.uiText.innerText = "You failed to colonize the ecosystem in time. Your population drifted into the deep sea and perished.";
+}
+
+function updateUI() {
+    dom.turn.innerText = state.turn;
+    dom.atp.innerText = state.atp;
+    dom.biomass.innerText = state.biomass;
+
+    dom.event.innerText = state.currentEvent ? `${state.currentEvent.name}: ${state.currentEvent.desc}` : "No Event";
+    dom.ecosystem.innerText = `${state.currentEcosystem.name}`;
+    dom.progressText.innerText = `${state.colonization} / ${state.currentEcosystem.threshold} CP`;
+
+    const progressPerc = (state.colonization / state.currentEcosystem.threshold) * 100;
+    dom.progressBar.style.width = `${Math.min(100, progressPerc)}%`;
+
+    dom.deck.innerText = state.deck.length;
+    dom.discard.innerText = state.discard.length;
+
+    // Render Genome
+    dom.genome.innerHTML = '';
+    state.genome.forEach(card => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+            <div class="card-title">${card.name}</div>
+            <div class="card-type">${card.type}</div>
+            <div class="card-desc">${card.description}</div>
+        `;
+        dom.genome.appendChild(div);
     });
-});
 
-metabolismBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        metabolismBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedMetabolism = btn.dataset.value;
+    // Render Hand
+    dom.hand.innerHTML = '';
+    state.hand.forEach(card => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+            <div class="card-title">${card.name}</div>
+            <div class="card-type">${card.type}</div>
+            <div class="card-desc">${card.description}</div>
+        `;
+        div.onclick = () => playCard(card.id);
+        dom.hand.appendChild(div);
     });
-});
 
-startBtn.addEventListener('click', startGame);
-restartBtn.addEventListener('click', showSelection);
+    if (state.gameOver) {
+        dom.overlay.classList.remove('hidden');
+    } else {
+        dom.overlay.classList.add('hidden');
+    }
+}
 
-// Start the game
 init();
